@@ -42,3 +42,39 @@ A 24/7 AI-assisted trading system for monitoring selected stocks, ingesting mark
    - Add logging, metrics, and basic monitoring dashboard.
 
 This file will evolve as we refine requirements and the product direction.
+
+## Usage
+
+### Setup
+
+1. Create and activate a Python 3.11 virtual environment:
+
+   `ash
+   python -m venv .venv
+   source .venv/bin/activate  # on Windows: .venv\\Scripts\\activate
+   `
+
+2. Install dependencies:
+
+   `ash
+   pip install -e .
+   `
+
+### Running tests
+
+From the project root:
+
+`ash
+pytest
+`
+
+### Running the CLI backtest
+
+Assuming you have a CSV with at least date and close columns (e.g., data/AAPL.csv):
+
+`ash
+python -m smc_trading backtest \
+  --ticker AAPL \
+  --csv-path data/AAPL.csv \
+  --initial-cash 10000
+`
