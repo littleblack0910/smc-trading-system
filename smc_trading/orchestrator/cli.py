@@ -64,6 +64,12 @@ def main(argv: list[str] | None = None) -> int:
         if cfg.end_date:
             prices = prices[prices.index <= pd.to_datetime(cfg.end_date)]
 
+        if prices.empty:
+            raise SystemExit(
+                "No price data available for the requested date window. "
+                "Check your CSV and the --start-date/--end-date arguments."
+            )
+
         result = run_buy_and_hold_backtest(
             prices,
             ticker=cfg.ticker,
