@@ -168,4 +168,15 @@ TICKER | YYYY-MM-DD -> YYYY-MM-DD | total_return=XX.XX% | max_drawdown=YY.YY%
 
 You can also emit a machine-readable batch report by adding `--summary-path path/to/report.json`. The JSON file contains the per-run results plus a small aggregate section (number of runs, average return, best/worst by total return).
 
+The batch summary JSON has the following shape:
+
+- `runs`: a list of per-run objects with the same fields as the single backtest JSON summary (`ticker`, `period_start`, `period_end`, `starting_cash`, `ending_value`, `total_return_pct`, `max_drawdown_pct`, `n_periods`).
+- `summary`: an aggregate object with:
+  - `n_runs`: total number of runs in the batch.
+  - `avg_total_return_pct`: the average total return across all runs.
+  - `best`: an object with `ticker` and `total_return_pct` for the best-performing run.
+  - `worst`: an object with `ticker` and `total_return_pct` for the worst-performing run.
+
+This makes it easier to feed the batch output into dashboards, notebooks, or other tooling without re-deriving aggregate metrics.
+
 If the manifest file is missing, invalid JSON, or a run is missing required keys (`ticker` or `csv_path`), the command exits with an error message describing the problem.
