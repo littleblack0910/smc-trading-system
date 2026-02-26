@@ -21,6 +21,7 @@ class BacktestConfig:
     start_date: Optional[str] = None  # ISO date (YYYY-MM-DD)
     end_date: Optional[str] = None
     output_path: Optional[Path] = None
+    equity_curve_path: Optional[Path] = None
 
 
 def backtest_config_from_args(args: object) -> BacktestConfig:
@@ -33,6 +34,10 @@ def backtest_config_from_args(args: object) -> BacktestConfig:
     csv_path = Path(getattr(args, "csv_path"))
     raw_output_path = getattr(args, "output_path", None)
     output_path = Path(raw_output_path) if raw_output_path is not None else None
+    raw_equity_curve_path = getattr(args, "equity_curve_path", None)
+    equity_curve_path = (
+        Path(raw_equity_curve_path) if raw_equity_curve_path is not None else None
+    )
     return BacktestConfig(
         ticker=getattr(args, "ticker"),
         csv_path=csv_path,
@@ -40,4 +45,5 @@ def backtest_config_from_args(args: object) -> BacktestConfig:
         start_date=getattr(args, "start_date", None),
         end_date=getattr(args, "end_date", None),
         output_path=output_path,
+        equity_curve_path=equity_curve_path,
     )

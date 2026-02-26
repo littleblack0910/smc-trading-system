@@ -31,6 +31,15 @@ def test_run_buy_and_hold_backtest_happy_path() -> None:
     expected_ending_value = 10_000.0 * (120.0 / 100.0)
     assert pytest.approx(result.ending_value, rel=1e-6) == expected_ending_value
     assert result.n_periods == 3
+    assert list(result.equity_curve.columns) == [
+        "date",
+        "price",
+        "position",
+        "cash",
+        "equity",
+    ]
+    assert len(result.equity_curve) == 3
+    assert pytest.approx(result.equity_curve.loc[0, "equity"], rel=1e-6) == 10_000.0
 
 
 def test_run_buy_and_hold_backtest_empty_series() -> None:

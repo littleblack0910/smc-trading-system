@@ -53,6 +53,15 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional path to write a JSON summary of the backtest result.",
     )
+    backtest.add_argument(
+        "--equity-curve-path",
+        type=Path,
+        default=None,
+        help=(
+            "Optional path to write the per-period equity curve CSV "
+            "(columns: date, price, position, cash, equity)."
+        ),
+    )
 
     backtest_batch = subparsers.add_parser(
         "backtest-batch",
@@ -302,6 +311,14 @@ def main(argv: list[str] | None = None) -> int:
             summary = _result_to_dict(result)
             with cfg.output_path.open("w", encoding="utf-8") as f:
                 json.dump(summary, f, indent=2)
+
+        if cfg.equity_curve_path:
+            cfg.equity_curve_path.parent.mkdir(parents=True, exist_ok=True)
+            equity_curve = result.equity_curve.copy()
+            equity_curve["date"] = pd.to_datetime(equity_curve["date"]).dt.strftime(
+                "%Y-%m-%d"
+            )
+            equity_curve.to_csv(cfg.equity_curve_path, index=False)
 
         return 0
 

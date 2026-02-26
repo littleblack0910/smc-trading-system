@@ -3,6 +3,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pandas as pd
+import pytest
+
 
 def run_cli(*args: str, cwd: Path) -> subprocess.CompletedProcess:
     return subprocess.run(
@@ -148,3 +151,37 @@ def test_cli_backtest_writes_json_summary_when_requested(tmp_path: Path) -> None
     assert data["ticker"] == "AAPL"
     assert data["period_start"] == "2024-01-01"
     assert data["period_end"] == "2024-01-02"
+
+
+def test_cli_backtest_writes_equity_curve_csv_when_requested(tmp_path: Path) -> None:
+    csv_path = tmp_path / "AAPL.csv"
+    csv_path.write_text(
+        "date,close\n2024-01-01,100\n2024-01-02,110\n2024-01-03,105\n",
+        encoding="utf-8",
+    )
+
+    equity_path = tmp_path / "equity.csv"
+    project_root = Path(__file__).resolve().parents[1]
+
+    result = run_cli(
+        "backtest",
+        "--ticker",
+        "AAPL",
+        "--csv-path",
+        str(csv_path),
+        "--initial-cash",
+        "10000",
+        "--equity-curve-path",
+        str(equity_path),
+        cwd=project_root,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert equity_path.exists()
+
+    df = pd.read_csv(equity_path, parse_dates=["date"])
+    assert list(df.columns) == ["date", "price", "position", "cash", "equity"]
+    assert len(df) == 3
+    assert pytest.approx(df.iloc[0]["equity"], rel=1e-6) == 10_000.0
+    # Ending equity reflects last price (105 vs first 100)
+    assert pytest.approx(df.iloc[-1]["equity"], rel=1e-6) == 10_000.0 * 1.05

@@ -88,7 +88,8 @@ python -m smc_trading backtest \
 
 - `--start-date YYYY-MM-DD` – only use rows on or after this date.
 - `--end-date YYYY-MM-DD` – only use rows on or before this date.
-- `--output-path path/to/summary.json` – write a machine-readable JSON summary of the backtest.
+- `--output-path path/to/summary.json` – write a machine-readable JSON summary of the backtest result.
+- `--equity-curve-path path/to/equity.csv` – write the full equity curve (date, price, position, cash, equity) to CSV.
 
 Example with a date window and JSON summary output:
 
@@ -99,7 +100,8 @@ python -m smc_trading backtest \
   --initial-cash 10000 \
   --start-date 2024-01-02 \
   --end-date 2024-01-12 \
-  --output-path data/AAPL_backtest_summary.json
+  --output-path data/AAPL_backtest_summary.json \
+  --equity-curve-path data/AAPL_equity_curve.csv
 ```
 
 The human-readable summary is printed to stdout, and when `--output-path` is provided a JSON file is written containing:

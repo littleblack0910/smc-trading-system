@@ -16,6 +16,7 @@ class BacktestResult:
     total_return_pct: float
     max_drawdown_pct: float
     n_periods: int
+    equity_curve: pd.DataFrame
 
 
 def _max_drawdown(equity_curve: pd.Series) -> float:
@@ -53,11 +54,23 @@ def run_buy_and_hold_backtest(
 
     first_price = float(prices.iloc[0])
     n_shares = initial_cash / first_price
-    equity_curve = n_shares * prices
+    position = pd.Series(n_shares, index=prices.index)
+    cash = pd.Series(0.0, index=prices.index)
+    equity = position * prices + cash
 
-    ending_value = float(equity_curve.iloc[-1])
+    ending_value = float(equity.iloc[-1])
     total_return_pct = (ending_value / initial_cash - 1.0) * 100.0
-    max_dd_pct = _max_drawdown(equity_curve)
+    max_dd_pct = _max_drawdown(equity)
+
+    equity_curve = pd.DataFrame(
+        {
+            "date": prices.index,
+            "price": prices.astype(float).values,
+            "position": position.astype(float).values,
+            "cash": cash.astype(float).values,
+            "equity": equity.astype(float).values,
+        }
+    )
 
     return BacktestResult(
         ticker=ticker,
@@ -68,4 +81,5 @@ def run_buy_and_hold_backtest(
         total_return_pct=total_return_pct,
         max_drawdown_pct=max_dd_pct,
         n_periods=int(len(prices)),
+        equity_curve=equity_curve.reset_index(drop=True),
     )
