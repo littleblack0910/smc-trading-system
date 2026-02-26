@@ -164,4 +164,6 @@ Each run prints a single summary line to stdout in the form:
 TICKER | YYYY-MM-DD -> YYYY-MM-DD | total_return=XX.XX% | max_drawdown=YY.YY%
 ```
 
+You can also emit a machine-readable batch report by adding `--summary-path path/to/report.json`. The JSON file contains the per-run results plus a small aggregate section (number of runs, average return, best/worst by total return).
+
 If the manifest file is missing, invalid JSON, or a run is missing required keys (`ticker` or `csv_path`), the command exits with an error message describing the problem.

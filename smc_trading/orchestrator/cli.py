@@ -8,7 +8,7 @@ import pandas as pd
 
 from smc_trading.config.settings import backtest_config_from_args
 from smc_trading.ingestion.csv_loader import load_price_csv
-from smc_trading.strategy.buy_and_hold import run_buy_and_hold_backtest
+from smc_trading.strategy.buy_and_hold import run_buy_and_hold_backtest, BacktestResult
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -64,8 +64,29 @@ def _build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Path to a JSON manifest with a top-level 'runs' list.",
     )
+    backtest_batch.add_argument(
+        "--summary-path",
+        type=Path,
+        default=None,
+        help="Optional path to write a JSON summary for the entire batch.",
+    )
 
     return parser
+
+
+def _result_to_dict(result: BacktestResult) -> dict:
+    """Convert a BacktestResult into a serialisable dict."""
+
+    return {
+        "ticker": result.ticker,
+        "period_start": result.start.date().isoformat(),
+        "period_end": result.end.date().isoformat(),
+        "starting_cash": result.starting_cash,
+        "ending_value": result.ending_value,
+        "total_return_pct": result.total_return_pct,
+        "max_drawdown_pct": result.max_drawdown_pct,
+        "n_periods": result.n_periods,
+    }
 
 
 def _load_manifest_runs(manifest_path: Path) -> tuple[list[dict], float]:
@@ -86,6 +107,8 @@ def _load_manifest_runs(manifest_path: Path) -> tuple[list[dict], float]:
     runs = manifest["runs"]
     if not isinstance(runs, list):
         raise SystemExit("Manifest 'runs' must be a list of backtest entries.")
+    if len(runs) == 0:
+        raise SystemExit("Manifest 'runs' must contain at least one backtest entry.")
 
     default_initial_cash = manifest.get("default_initial_cash", 10_000.0)
     try:
@@ -148,9 +171,13 @@ def _validate_run_config(
     return ticker, csv_path, initial_cash, start_date, end_date
 
 
-def _handle_backtest_batch(manifest_path: Path) -> int:
+def _handle_backtest_batch(manifest_path: Path, summary_path: Path | None = None) -> int:
     runs, default_initial_cash = _load_manifest_runs(manifest_path)
 
+    avg_return = None
+    best: BacktestResult | None = None
+    worst: BacktestResult | None = None
+    results: list[BacktestResult] = []
     for idx, run_cfg in enumerate(runs):
         ticker, csv_path, initial_cash, start_date, end_date = _validate_run_config(
             run_cfg, idx, default_initial_cash
@@ -186,11 +213,50 @@ def _handle_backtest_batch(manifest_path: Path) -> int:
         except Exception as exc:  # pragma: no cover - defensive
             raise SystemExit(f"Backtest failed for run {idx} ({ticker}): {exc}") from exc
 
+        results.append(result)
         print(
             f"{result.ticker} | {result.start.date()} -> {result.end.date()} | "
             f"total_return={result.total_return_pct:,.2f}% | "
             f"max_drawdown={result.max_drawdown_pct:,.2f}%"
         )
+
+    if results:
+        avg_return = round(
+            sum(r.total_return_pct for r in results) / len(results), 6
+        )
+        best = max(results, key=lambda r: r.total_return_pct)
+        worst = min(results, key=lambda r: r.total_return_pct)
+        print(
+            "Batch summary: "
+            f"runs={len(results)} | "
+            f"avg_return={avg_return:,.2f}% | "
+            f"best={best.ticker} ({best.total_return_pct:,.2f}%) | "
+            f"worst={worst.ticker} ({worst.total_return_pct:,.2f}%)"
+        )
+
+    if summary_path:
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_doc = {
+            "runs": [_result_to_dict(r) for r in results],
+            "summary": {
+                "n_runs": len(results),
+                "avg_total_return_pct": avg_return if results else None,
+                "best": {
+                    "ticker": best.ticker,
+                    "total_return_pct": best.total_return_pct,
+                }
+                if results
+                else None,
+                "worst": {
+                    "ticker": worst.ticker,
+                    "total_return_pct": worst.total_return_pct,
+                }
+                if results
+                else None,
+            },
+        }
+        with summary_path.open("w", encoding="utf-8") as f:
+            json.dump(summary_doc, f, indent=2)
 
     return 0
 
@@ -233,23 +299,14 @@ def main(argv: list[str] | None = None) -> int:
 
         if cfg.output_path:
             cfg.output_path.parent.mkdir(parents=True, exist_ok=True)
-            summary = {
-                "ticker": result.ticker,
-                "period_start": result.start.date().isoformat(),
-                "period_end": result.end.date().isoformat(),
-                "starting_cash": result.starting_cash,
-                "ending_value": result.ending_value,
-                "total_return_pct": result.total_return_pct,
-                "max_drawdown_pct": result.max_drawdown_pct,
-                "n_periods": result.n_periods,
-            }
+            summary = _result_to_dict(result)
             with cfg.output_path.open("w", encoding="utf-8") as f:
                 json.dump(summary, f, indent=2)
 
         return 0
 
     if args.command == "backtest-batch":
-        return _handle_backtest_batch(args.manifest)
+        return _handle_backtest_batch(args.manifest, summary_path=args.summary_path)
 
     parser.error(f"Unknown command: {args.command}")
     return 1
