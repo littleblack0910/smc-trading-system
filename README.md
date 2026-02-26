@@ -49,32 +49,68 @@ This file will evolve as we refine requirements and the product direction.
 
 1. Create and activate a Python 3.11 virtual environment:
 
-   `ash
+   ```bash
    python -m venv .venv
-   source .venv/bin/activate  # on Windows: .venv\\Scripts\\activate
-   `
+   # On macOS/Linux
+   source .venv/bin/activate
+   # On Windows
+   .venv\\Scripts\\activate
+   ```
 
-2. Install dependencies:
+2. Install dependencies (editable mode so the CLI entrypoint is available during development):
 
-   `ash
+   ```bash
    pip install -e .
-   `
+   ```
 
 ### Running tests
 
 From the project root:
 
-`ash
+```bash
 pytest
-`
+```
 
 ### Running the CLI backtest
 
-Assuming you have a CSV with at least date and close columns (e.g., data/AAPL.csv):
+The CLI entrypoint is exposed as the `smc-trading` console script, and is also runnable via `python -m smc_trading`.
 
-`ash
+Assuming you have a CSV with at least `date` and `close` columns (for example `data/AAPL_sample.csv`):
+
+```bash
 python -m smc_trading backtest \
   --ticker AAPL \
-  --csv-path data/AAPL.csv \
+  --csv-path data/AAPL_sample.csv \
   --initial-cash 10000
-`
+```
+
+#### Optional arguments
+
+- `--start-date YYYY-MM-DD` – only use rows on or after this date.
+- `--end-date YYYY-MM-DD` – only use rows on or before this date.
+- `--output-path path/to/summary.json` – write a machine-readable JSON summary of the backtest.
+
+Example with a date window and JSON summary output:
+
+```bash
+python -m smc_trading backtest \
+  --ticker AAPL \
+  --csv-path data/AAPL_sample.csv \
+  --initial-cash 10000 \
+  --start-date 2024-01-02 \
+  --end-date 2024-01-12 \
+  --output-path data/AAPL_backtest_summary.json
+```
+
+The human-readable summary is printed to stdout, and when `--output-path` is provided a JSON file is written containing:
+
+- `ticker`
+- `period_start`
+- `period_end`
+- `starting_cash`
+- `ending_value`
+- `total_return_pct`
+- `max_drawdown_pct`
+- `n_periods`
+
+This makes it easy to plug the backtest into higher-level tooling (dashboards, notebooks, or orchestrators) while preserving a concise CLI summary.
