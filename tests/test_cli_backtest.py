@@ -41,3 +41,34 @@ def test_cli_backtest_runs_and_prints_summary(tmp_path: Path) -> None:
     assert "Starting cash   : $10,000.00" in output
     assert "Ending value" in output
     assert "Total return" in output
+
+
+def test_cli_backtest_respects_date_window(tmp_path: Path) -> None:
+    csv_path = tmp_path / "AAPL.csv"
+    csv_path.write_text(
+        "date,close\n2024-01-01,100\n2024-01-02,110\n2024-01-03,120\n",
+        encoding="utf-8",
+    )
+
+    project_root = Path(__file__).resolve().parents[1]
+
+    result = run_cli(
+        "backtest",
+        "--ticker",
+        "AAPL",
+        "--csv-path",
+        str(csv_path),
+        "--initial-cash",
+        "10000",
+        "--start-date",
+        "2024-01-02",
+        "--end-date",
+        "2024-01-03",
+        cwd=project_root,
+    )
+
+    assert result.returncode == 0, result.stderr
+    output = result.stdout
+
+    # The reported period should reflect the filtered window.
+    assert "Period          : 2024-01-02 -> 2024-01-03" in output
