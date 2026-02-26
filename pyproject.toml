@@ -1,0 +1,16 @@
+[project]
+name = "smc-trading-system"
+version = "0.1.0"
+description = "SMC-based algorithmic trading system using Alpaca"
+requires-python = ">=3.11"
+
+[project.dependencies]
+pandas = "*"
+numpy = "*"
+requests = "*"
+"alpaca-py" = "*"
+SQLAlchemy = "*"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
