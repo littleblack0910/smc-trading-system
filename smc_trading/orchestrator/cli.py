@@ -68,7 +68,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _load_manifest_runs(manifest_path: Path) -> list[dict]:
+def _load_manifest_runs(manifest_path: Path) -> tuple[list[dict], float]:
     if not manifest_path.exists():
         raise SystemExit(f"Manifest file not found: {manifest_path}")
 
@@ -77,45 +77,109 @@ def _load_manifest_runs(manifest_path: Path) -> list[dict]:
     except json.JSONDecodeError as exc:
         raise SystemExit(f"Failed to parse manifest JSON: {exc}") from exc
 
-    if not isinstance(manifest, dict) or "runs" not in manifest:
+    if not isinstance(manifest, dict):
         raise SystemExit("Manifest must be a JSON object with a 'runs' list.")
+
+    if "runs" not in manifest:
+        raise SystemExit("Manifest must include a 'runs' list of backtests.")
 
     runs = manifest["runs"]
     if not isinstance(runs, list):
-        raise SystemExit("Manifest must be a JSON object with a 'runs' list.")
+        raise SystemExit("Manifest 'runs' must be a list of backtest entries.")
 
-    return runs
+    default_initial_cash = manifest.get("default_initial_cash", 10_000.0)
+    try:
+        default_initial_cash = float(default_initial_cash)
+    except (TypeError, ValueError):
+        raise SystemExit("Manifest field 'default_initial_cash' must be a number if provided.")
+
+    return runs, default_initial_cash
+
+
+def _validate_run_config(
+    run_cfg: object, idx: int, default_initial_cash: float
+) -> tuple[str, Path, float, str | None, str | None]:
+    """Validate and normalise a single run configuration from the manifest.
+
+    This keeps error messages user-friendly and ensures we only proceed with
+    well-formed inputs while maintaining backwards compatibility.
+    """
+
+    if not isinstance(run_cfg, dict):
+        raise SystemExit(
+            f"Run {idx} must be a JSON object with 'ticker' and 'csv_path' keys."
+        )
+
+    missing = [key for key in ("ticker", "csv_path") if key not in run_cfg]
+    if missing:
+        raise SystemExit(
+            f"Run {idx} is missing required key(s): {', '.join(missing)}"
+        )
+
+    ticker = run_cfg["ticker"]
+    if not isinstance(ticker, str):
+        raise SystemExit(f"Run {idx} field 'ticker' must be a string.")
+
+    csv_path_raw = run_cfg["csv_path"]
+    if not isinstance(csv_path_raw, str):
+        raise SystemExit(f"Run {idx} field 'csv_path' must be a string path.")
+    csv_path = Path(csv_path_raw)
+
+    initial_cash_raw = run_cfg.get("initial_cash", default_initial_cash)
+    try:
+        initial_cash = float(initial_cash_raw)
+    except (TypeError, ValueError):
+        raise SystemExit(
+            f"Run {idx} field 'initial_cash' must be a number if provided."
+        )
+
+    start_date = run_cfg.get("start_date")
+    if start_date is not None and not isinstance(start_date, str):
+        raise SystemExit(
+            f"Run {idx} field 'start_date' must be a string in YYYY-MM-DD format."
+        )
+
+    end_date = run_cfg.get("end_date")
+    if end_date is not None and not isinstance(end_date, str):
+        raise SystemExit(
+            f"Run {idx} field 'end_date' must be a string in YYYY-MM-DD format."
+        )
+
+    return ticker, csv_path, initial_cash, start_date, end_date
 
 
 def _handle_backtest_batch(manifest_path: Path) -> int:
-    runs = _load_manifest_runs(manifest_path)
+    runs, default_initial_cash = _load_manifest_runs(manifest_path)
 
     for idx, run_cfg in enumerate(runs):
-        if not isinstance(run_cfg, dict):
-            raise SystemExit(
-                f"Run {idx} must be a JSON object with 'ticker' and 'csv_path' keys."
-            )
-
-        missing = [key for key in ("ticker", "csv_path") if key not in run_cfg]
-        if missing:
-            raise SystemExit(
-                f"Run {idx} is missing required key(s): {', '.join(missing)}"
-            )
-
-        ticker = run_cfg["ticker"]
-        csv_path = Path(run_cfg["csv_path"])
-        initial_cash = float(run_cfg.get("initial_cash", 10_000.0))
+        ticker, csv_path, initial_cash, start_date, end_date = _validate_run_config(
+            run_cfg, idx, default_initial_cash
+        )
 
         try:
             df = load_price_csv(csv_path)
         except FileNotFoundError:
             raise SystemExit(f"CSV file not found for run {idx} ({ticker}): {csv_path}")
         except Exception as exc:  # pragma: no cover - defensive
-            raise SystemExit(f"Failed to load CSV for run {idx} ({ticker}): {exc}") from exc
+            raise SystemExit(
+                f"Failed to load CSV for run {idx} ({ticker}): {exc}"
+            ) from exc
+
+        prices = df["close"]
+        if start_date:
+            prices = prices[prices.index >= pd.to_datetime(start_date)]
+        if end_date:
+            prices = prices[prices.index <= pd.to_datetime(end_date)]
+
+        if prices.empty:
+            raise SystemExit(
+                "No price data available for the requested date window in "
+                f"run {idx} ({ticker}). Check your CSV and any start/end dates."
+            )
 
         try:
             result = run_buy_and_hold_backtest(
-                df["close"],
+                prices,
                 ticker=ticker,
                 initial_cash=initial_cash,
             )

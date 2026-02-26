@@ -123,16 +123,25 @@ The manifest must be a JSON object with a top-level `runs` list. Each entry in `
 
 - `ticker` (required): the ticker symbol, e.g. `"AAPL"`.
 - `csv_path` (required): path to a CSV file with at least `date` and `close` columns.
-- `initial_cash` (optional): starting cash for that run (defaults to `10000` if omitted).
+- `initial_cash` (optional): starting cash for that run. If omitted, the value from `default_initial_cash` is used when present, otherwise `10000`.
+- `start_date` (optional): start date for that run, in `YYYY-MM-DD` format.
+- `end_date` (optional): end date for that run, in `YYYY-MM-DD` format.
+
+The top-level manifest may also include:
+
+- `default_initial_cash` (optional): a numeric default starting cash applied to runs that omit `initial_cash`.
 
 Example `manifest.json`:
 
 ```json
 {
+  "default_initial_cash": 7500,
   "runs": [
     {
       "ticker": "MSFT",
-      "csv_path": "data/MSFT_sample.csv"
+      "csv_path": "data/MSFT_sample.csv",
+      "start_date": "2024-01-01",
+      "end_date": "2024-01-31"
     },
     {
       "ticker": "AAPL",
