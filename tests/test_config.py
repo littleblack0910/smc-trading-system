@@ -22,6 +22,7 @@ def test_backtest_config_from_args_minimal(tmp_path: Path) -> None:
     assert cfg.initial_cash == 5000.0
     assert cfg.start_date is None
     assert cfg.end_date is None
+    assert cfg.output_path is None
 
 
 def test_backtest_config_from_args_with_dates(tmp_path: Path) -> None:
@@ -34,6 +35,7 @@ def test_backtest_config_from_args_with_dates(tmp_path: Path) -> None:
         initial_cash=10_000.0,
         start_date="2024-01-01",
         end_date="2024-02-01",
+        output_path=str(tmp_path / "summary.json"),
     )
 
     cfg = backtest_config_from_args(args)
@@ -43,3 +45,4 @@ def test_backtest_config_from_args_with_dates(tmp_path: Path) -> None:
     assert cfg.initial_cash == 10_000.0
     assert cfg.start_date == "2024-01-01"
     assert cfg.end_date == "2024-02-01"
+    assert cfg.output_path == tmp_path / "summary.json"

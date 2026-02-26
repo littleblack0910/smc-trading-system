@@ -1,3 +1,4 @@
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -104,3 +105,46 @@ def test_cli_backtest_fails_when_date_window_is_empty(tmp_path: Path) -> None:
         "No price data available for the requested date window" in result.stderr
         or "No price data available for the requested date window" in result.stdout
     )
+
+
+def test_cli_backtest_writes_json_summary_when_requested(tmp_path: Path) -> None:
+    csv_path = tmp_path / "AAPL.csv"
+    csv_path.write_text(
+        "date,close\n2024-01-01,100\n2024-01-02,110\n", encoding="utf-8"
+    )
+
+    output_path = tmp_path / "summary.json"
+    project_root = Path(__file__).resolve().parents[1]
+
+    result = run_cli(
+        "backtest",
+        "--ticker",
+        "AAPL",
+        "--csv-path",
+        str(csv_path),
+        "--initial-cash",
+        "10000",
+        "--output-path",
+        str(output_path),
+        cwd=project_root,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert output_path.exists()
+
+    data = json.loads(output_path.read_text(encoding="utf-8"))
+    for key in [
+        "ticker",
+        "period_start",
+        "period_end",
+        "starting_cash",
+        "ending_value",
+        "total_return_pct",
+        "max_drawdown_pct",
+        "n_periods",
+    ]:
+        assert key in data, f"Missing key in JSON summary: {key}"
+
+    assert data["ticker"] == "AAPL"
+    assert data["period_start"] == "2024-01-01"
+    assert data["period_end"] == "2024-01-02"

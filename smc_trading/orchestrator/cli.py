@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -46,6 +47,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional end date (YYYY-MM-DD) to slice the CSV",
     )
+    backtest.add_argument(
+        "--output-path",
+        type=Path,
+        default=None,
+        help="Optional path to write a JSON summary of the backtest result.",
+    )
 
     return parser
 
@@ -85,6 +92,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Ending value    : ${result.ending_value:,.2f}")
         print(f"Total return    : {result.total_return_pct:6.2f}%")
         print(f"Max drawdown    : {result.max_drawdown_pct:6.2f}%")
+
+        if cfg.output_path:
+            cfg.output_path.parent.mkdir(parents=True, exist_ok=True)
+            summary = {
+                "ticker": result.ticker,
+                "period_start": result.start.date().isoformat(),
+                "period_end": result.end.date().isoformat(),
+                "starting_cash": result.starting_cash,
+                "ending_value": result.ending_value,
+                "total_return_pct": result.total_return_pct,
+                "max_drawdown_pct": result.max_drawdown_pct,
+                "n_periods": result.n_periods,
+            }
+            with cfg.output_path.open("w", encoding="utf-8") as f:
+                json.dump(summary, f, indent=2)
 
         return 0
 
