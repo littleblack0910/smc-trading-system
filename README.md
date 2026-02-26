@@ -114,3 +114,45 @@ The human-readable summary is printed to stdout, and when `--output-path` is pro
 - `n_periods`
 
 This makes it easy to plug the backtest into higher-level tooling (dashboards, notebooks, or orchestrators) while preserving a concise CLI summary.
+
+### Running batch CLI backtests
+
+You can run multiple buy-and-hold backtests in one command using the `backtest-batch` subcommand and a JSON manifest file.
+
+The manifest must be a JSON object with a top-level `runs` list. Each entry in `runs` is an object with:
+
+- `ticker` (required): the ticker symbol, e.g. `"AAPL"`.
+- `csv_path` (required): path to a CSV file with at least `date` and `close` columns.
+- `initial_cash` (optional): starting cash for that run (defaults to `10000` if omitted).
+
+Example `manifest.json`:
+
+```json
+{
+  "runs": [
+    {
+      "ticker": "MSFT",
+      "csv_path": "data/MSFT_sample.csv"
+    },
+    {
+      "ticker": "AAPL",
+      "csv_path": "data/AAPL_sample.csv",
+      "initial_cash": 5000
+    }
+  ]
+}
+```
+
+Run the batch backtest from the project root:
+
+```bash
+python -m smc_trading backtest-batch --manifest path/to/manifest.json
+```
+
+Each run prints a single summary line to stdout in the form:
+
+```text
+TICKER | YYYY-MM-DD -> YYYY-MM-DD | total_return=XX.XX% | max_drawdown=YY.YY%
+```
+
+If the manifest file is missing, invalid JSON, or a run is missing required keys (`ticker` or `csv_path`), the command exits with an error message describing the problem.
