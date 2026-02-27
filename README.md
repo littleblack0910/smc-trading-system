@@ -195,3 +195,5 @@ An example manifest is included at `data/batch_manifest_example.json`, which you
 ```bash
 python -m smc_trading backtest-batch --manifest data/batch_manifest_example.json
 ```
+
+Per-run JSON output: use --per-run-output-dir path/to/dir to write one JSON summary per executed run. Each file is named <ticker>_<index>.json and has the same shape as the single backtest JSON summary.
