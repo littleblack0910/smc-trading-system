@@ -132,6 +132,8 @@ The manifest must be a JSON object with a top-level `runs` list. Each entry in `
 The top-level manifest may also include:
 
 - `default_initial_cash` (optional): a numeric default starting cash applied to runs that omit `initial_cash`.
+- `default_start_date` (optional): a default start date (YYYY-MM-DD) applied to runs that omit `start_date`.
+- `default_end_date` (optional): a default end date (YYYY-MM-DD) applied to runs that omit `end_date`.
 
 Example `manifest.json`:
 
