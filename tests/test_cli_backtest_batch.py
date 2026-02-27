@@ -453,3 +453,57 @@ def test_backtest_batch_run_specific_dates_override_defaults(tmp_path: Path) -> 
     run_lines = [line for line in lines if not line.startswith("Batch summary")]
     assert len(run_lines) == 1
     assert run_lines[0].startswith("MSFT | 2024-01-03 -> 2024-01-03")
+
+
+def test_backtest_batch_writes_per_run_json_summaries(tmp_path: Path) -> None:
+    csv_msft = tmp_path / "MSFT.csv"
+    csv_msft.write_text(
+        "date,close\n2024-01-01,100\n2024-01-02,110\n",
+        encoding="utf-8",
+    )
+
+    csv_aapl = tmp_path / "AAPL.csv"
+    csv_aapl.write_text(
+        "date,close\n2024-02-01,200\n2024-02-02,220\n",
+        encoding="utf-8",
+    )
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "runs": [
+                    {"ticker": "MSFT", "csv_path": str(csv_msft)},
+                    {"ticker": "AAPL", "csv_path": str(csv_aapl)},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    per_run_dir = tmp_path / "per_run"
+    project_root = Path(__file__).resolve().parents[1]
+    result = run_cli(
+        "backtest-batch",
+        "--manifest",
+        str(manifest_path),
+        "--per-run-output-dir",
+        str(per_run_dir),
+        cwd=project_root,
+    )
+
+    assert result.returncode == 0, result.stderr
+    # Expect one JSON file per executed run, named with ticker and manifest index
+    msft_path = per_run_dir / "MSFT_0.json"
+    aapl_path = per_run_dir / "AAPL_1.json"
+    assert msft_path.exists()
+    assert aapl_path.exists()
+
+    msft_doc = json.loads(msft_path.read_text(encoding="utf-8"))
+    aapl_doc = json.loads(aapl_path.read_text(encoding="utf-8"))
+
+    assert msft_doc["ticker"] == "MSFT"
+    assert aapl_doc["ticker"] == "AAPL"
+    # Sanity-check that the period fields are present and look like dates
+    assert "period_start" in msft_doc and "period_end" in msft_doc
+    assert "period_start" in aapl_doc and "period_end" in aapl_doc

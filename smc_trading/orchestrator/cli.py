@@ -80,6 +80,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional path to write a JSON summary for the entire batch.",
     )
     backtest_batch.add_argument(
+        "--per-run-output-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Optional directory to write a JSON summary per executed run. "
+            "Files are named '<ticker>_<index>.json' using the run index from the manifest."
+        ),
+    )
+    backtest_batch.add_argument(
         "--quiet",
         action="store_true",
         help="If set, only print the batch summary (suppress per-run lines).",
@@ -232,6 +241,7 @@ def _validate_run_config(
 def _handle_backtest_batch(
     manifest_path: Path,
     summary_path: Path | None = None,
+    per_run_output_dir: Path | None = None,
     *,
     quiet: bool = False,
     skip_missing: bool = False,
@@ -239,6 +249,9 @@ def _handle_backtest_batch(
     runs, default_initial_cash, default_start_date, default_end_date = _load_manifest_runs(
         manifest_path
     )
+
+    if per_run_output_dir is not None:
+        per_run_output_dir.mkdir(parents=True, exist_ok=True)
 
     avg_return = None
     best: BacktestResult | None = None
@@ -292,6 +305,12 @@ def _handle_backtest_batch(
             raise SystemExit(f"Backtest failed for run {idx} ({ticker}): {exc}") from exc
 
         results.append(result)
+
+        if per_run_output_dir is not None:
+            output_doc = _result_to_dict(result)
+            per_run_path = per_run_output_dir / f"{ticker}_{idx}.json"
+            with per_run_path.open("w", encoding="utf-8") as f:
+                json.dump(output_doc, f, indent=2)
         if not quiet:
             print(
                 f"{result.ticker} | {result.start.date()} -> {result.end.date()} | "
@@ -396,6 +415,7 @@ def main(argv: list[str] | None = None) -> int:
         return _handle_backtest_batch(
             args.manifest,
             summary_path=args.summary_path,
+            per_run_output_dir=getattr(args, "per_run_output_dir", None),
             quiet=getattr(args, "quiet", False),
             skip_missing=getattr(args, "skip_missing", False),
         )
