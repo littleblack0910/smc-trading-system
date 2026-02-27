@@ -1,0 +1,2 @@
+[console_scripts]
+smc-trading = smc_trading.__main__:main

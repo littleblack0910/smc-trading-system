@@ -1,0 +1,14 @@
+README.md
+pyproject.toml
+smc_trading/__init__.py
+smc_trading/__main__.py
+smc_trading_system.egg-info/PKG-INFO
+smc_trading_system.egg-info/SOURCES.txt
+smc_trading_system.egg-info/dependency_links.txt
+smc_trading_system.egg-info/entry_points.txt
+smc_trading_system.egg-info/requires.txt
+smc_trading_system.egg-info/top_level.txt
+tests/test_buy_and_hold.py
+tests/test_cli_backtest.py
+tests/test_config.py
+tests/test_csv_loader.py
