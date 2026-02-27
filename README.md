@@ -25,19 +25,19 @@ A 24/7 AI-assisted trading system for monitoring selected stocks, ingesting mark
    - Create folder structure, basic config, and simple CLI entrypoint.
    - Add a simple backtest on historical price data for a few tickers.
 
-2. **Data Ingestion (Weeks 1â€“2)**
+2. **Data Ingestion (Weeks 1â€?)**
    - Implement market data ingestion (historical + live) from chosen provider.
    - Store data in local DB or files; define canonical data schema.
 
-3. **Strategy & Backtesting (Weeks 2â€“3)**
+3. **Strategy & Backtesting (Weeks 2â€?)**
    - Implement a simple baseline strategy (e.g., momentum + volatility filters).
    - Build a small backtesting harness.
 
-4. **Execution Engine (Weeks 3â€“4)**
+4. **Execution Engine (Weeks 3â€?)**
    - Integrate with broker paper-trading API.
    - Implement risk checks and position sizing.
 
-5. **24/7 Orchestration & Monitoring (Weeks 4â€“6)**
+5. **24/7 Orchestration & Monitoring (Weeks 4â€?)**
    - Build a scheduler/daemon to run the loop.
    - Add logging, metrics, and basic monitoring dashboard.
 
@@ -86,10 +86,10 @@ python -m smc_trading backtest \
 
 #### Optional arguments
 
-- `--start-date YYYY-MM-DD` â€“ only use rows on or after this date.
-- `--end-date YYYY-MM-DD` â€“ only use rows on or before this date.
-- `--output-path path/to/summary.json` â€“ write a machine-readable JSON summary of the backtest result.
-- `--equity-curve-path path/to/equity.csv` â€“ write the full equity curve (date, price, position, cash, equity) to CSV.
+- `--start-date YYYY-MM-DD` â€?only use rows on or after this date.
+- `--end-date YYYY-MM-DD` â€?only use rows on or before this date.
+- `--output-path path/to/summary.json` â€?write a machine-readable JSON summary of the backtest result.
+- `--equity-curve-path path/to/equity.csv` â€?write the full equity curve (date, price, position, cash, equity) to CSV.
 
 Example with a date window and JSON summary output:
 
@@ -116,6 +116,8 @@ The human-readable summary is printed to stdout, and when `--output-path` is pro
 - `n_periods`
 
 This makes it easy to plug the backtest into higher-level tooling (dashboards, notebooks, or orchestrators) while preserving a concise CLI summary.
+
+For a more formal description of the JSON structures, see `docs/backtest_json_schemas.md`.
 
 ### Running batch CLI backtests
 
@@ -188,3 +190,4 @@ An example manifest is included at `data/batch_manifest_example.json`, which you
 ```bash
 python -m smc_trading backtest-batch --manifest data/batch_manifest_example.json
 ```
+
