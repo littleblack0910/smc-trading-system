@@ -250,3 +250,62 @@ def test_backtest_batch_errors_on_empty_runs(tmp_path: Path) -> None:
     assert result.returncode != 0
     message = result.stderr + result.stdout
     assert "must contain at least one backtest entry" in message
+
+def test_backtest_batch_errors_when_csv_missing(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "runs": [
+                    {
+                        "ticker": "AAPL",
+                        "csv_path": str(tmp_path / "does_not_exist.csv"),
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    project_root = Path(__file__).resolve().parents[1]
+    result = run_cli(
+        "backtest-batch", "--manifest", str(manifest_path), cwd=project_root
+    )
+
+    assert result.returncode != 0
+    message = result.stderr + result.stdout
+    assert "CSV file not found for run 0 (AAPL)" in message
+
+
+def test_backtest_batch_errors_when_date_window_empty(tmp_path: Path) -> None:
+    csv_path = tmp_path / "AAPL.csv"
+    csv_path.write_text(
+        "date,close\n2024-01-01,100\n2024-01-02,110\n2024-01-03,120\n",
+        encoding="utf-8",
+    )
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "runs": [
+                    {
+                        "ticker": "AAPL",
+                        "csv_path": str(csv_path),
+                        "start_date": "2025-01-01",
+                        "end_date": "2025-01-31",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    project_root = Path(__file__).resolve().parents[1]
+    result = run_cli(
+        "backtest-batch", "--manifest", str(manifest_path), cwd=project_root
+    )
+
+    assert result.returncode != 0
+    message = result.stderr + result.stdout
+    assert "No price data available for the requested date window in run 0 (AAPL)." in message
