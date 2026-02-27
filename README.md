@@ -180,3 +180,11 @@ The batch summary JSON has the following shape:
 This makes it easier to feed the batch output into dashboards, notebooks, or other tooling without re-deriving aggregate metrics.
 
 If the manifest file is missing, invalid JSON, or a run is missing required keys (`ticker` or `csv_path`), the command exits with an error message describing the problem.
+
+Example manifest file:
+
+An example manifest is included at `data/batch_manifest_example.json`, which you can run with:
+
+```bash
+python -m smc_trading backtest-batch --manifest data/batch_manifest_example.json
+```

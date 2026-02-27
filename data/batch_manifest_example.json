@@ -1,0 +1,16 @@
+﻿{
+  "default_initial_cash": 7500,
+  "runs": [
+    {
+      "ticker": "AAPL",
+      "csv_path": "data/AAPL_sample.csv",
+      "start_date": "2024-01-02",
+      "end_date": "2024-01-12"
+    },
+    {
+      "ticker": "AAPL",
+      "csv_path": "data/AAPL_sample.csv",
+      "initial_cash": 5000
+    }
+  ]
+}
