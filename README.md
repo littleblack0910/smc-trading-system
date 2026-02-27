@@ -181,4 +181,9 @@ The batch summary JSON has the following shape:
 
 This makes it easier to feed the batch output into dashboards, notebooks, or other tooling without re-deriving aggregate metrics.
 
+Additional useful flags for batch runs:
+
+- `--quiet`: suppress per-run summary lines and only print the final batch summary (useful when you are mainly interested in aggregate metrics).
+- `--skip-missing`: skip any runs whose CSV files are missing instead of failing the entire batch. Each skipped run is reported to stdout so you can see what was ignored.
+
 If the manifest file is missing, invalid JSON, or a run is missing required keys (`ticker` or `csv_path`), the command exits with an error message describing the problem.
