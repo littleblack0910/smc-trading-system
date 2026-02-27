@@ -84,6 +84,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="If set, only print the batch summary (suppress per-run lines).",
     )
+    backtest_batch.add_argument(
+        "--skip-missing",
+        action="store_true",
+        help=(
+            "If set, skip runs whose CSV files are missing instead of failing the whole batch."
+        ),
+    )
 
     return parser
 
@@ -190,6 +197,7 @@ def _handle_backtest_batch(
     summary_path: Path | None = None,
     *,
     quiet: bool = False,
+    skip_missing: bool = False,
 ) -> int:
     runs, default_initial_cash = _load_manifest_runs(manifest_path)
 
@@ -205,7 +213,15 @@ def _handle_backtest_batch(
         try:
             df = load_price_csv(csv_path)
         except FileNotFoundError:
-            raise SystemExit(f"CSV file not found for run {idx} ({ticker}): {csv_path}")
+            if skip_missing:
+                print(
+                    f"Skipping run {idx} ({ticker}) because CSV file is missing: {csv_path}",
+                    flush=True,
+                )
+                continue
+            raise SystemExit(
+                f"CSV file not found for run {idx} ({ticker}): {csv_path}"
+            )
         except Exception as exc:  # pragma: no cover - defensive
             raise SystemExit(
                 f"Failed to load CSV for run {idx} ({ticker}): {exc}"
@@ -240,19 +256,23 @@ def _handle_backtest_batch(
                 f"max_drawdown={result.max_drawdown_pct:,.2f}%"
             )
 
-    if results:
-        avg_return = round(
-            sum(r.total_return_pct for r in results) / len(results), 6
-        )
-        best = max(results, key=lambda r: r.total_return_pct)
-        worst = min(results, key=lambda r: r.total_return_pct)
+    if not results:
         print(
-            "Batch summary: "
-            f"runs={len(results)} | "
-            f"avg_return={avg_return:,.2f}% | "
-            f"best={best.ticker} ({best.total_return_pct:,.2f}%) | "
-            f"worst={worst.ticker} ({worst.total_return_pct:,.2f}%)"
+            "No backtests were executed. Check your manifest and any --skip-missing usage.",
+            flush=True,
         )
+        return 1
+
+    avg_return = round(sum(r.total_return_pct for r in results) / len(results), 6)
+    best = max(results, key=lambda r: r.total_return_pct)
+    worst = min(results, key=lambda r: r.total_return_pct)
+    print(
+        "Batch summary: "
+        f"runs={len(results)} | "
+        f"avg_return={avg_return:,.2f}% | "
+        f"best={best.ticker} ({best.total_return_pct:,.2f}%) | "
+        f"worst={worst.ticker} ({worst.total_return_pct:,.2f}%)"
+    )
 
     if summary_path:
         summary_path.parent.mkdir(parents=True, exist_ok=True)
@@ -260,19 +280,15 @@ def _handle_backtest_batch(
             "runs": [_result_to_dict(r) for r in results],
             "summary": {
                 "n_runs": len(results),
-                "avg_total_return_pct": avg_return if results else None,
+                "avg_total_return_pct": avg_return,
                 "best": {
                     "ticker": best.ticker,
                     "total_return_pct": best.total_return_pct,
-                }
-                if results
-                else None,
+                },
                 "worst": {
                     "ticker": worst.ticker,
                     "total_return_pct": worst.total_return_pct,
-                }
-                if results
-                else None,
+                },
             },
         }
         with summary_path.open("w", encoding="utf-8") as f:
@@ -338,6 +354,7 @@ def main(argv: list[str] | None = None) -> int:
             args.manifest,
             summary_path=args.summary_path,
             quiet=getattr(args, "quiet", False),
+            skip_missing=getattr(args, "skip_missing", False),
         )
 
     parser.error(f"Unknown command: {args.command}")
