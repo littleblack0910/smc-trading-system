@@ -373,3 +373,83 @@ def test_backtest_batch_quiet_suppresses_run_output(tmp_path: Path) -> None:
     # Only the batch summary line should be present
     assert len(lines) == 1
     assert lines[0].startswith("Batch summary: ")
+
+
+def test_backtest_batch_uses_default_date_window_when_not_overridden(tmp_path: Path) -> None:
+    csv_msft = tmp_path / "MSFT.csv"
+    csv_msft.write_text(
+        "date,close\n"
+        "2024-01-01,100\n"
+        "2024-01-02,110\n"
+        "2024-01-03,120\n",
+        encoding="utf-8",
+    )
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "default_start_date": "2024-01-02",
+                "default_end_date": "2024-01-03",
+                "runs": [
+                    {
+                        "ticker": "MSFT",
+                        "csv_path": str(csv_msft),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    project_root = Path(__file__).resolve().parents[1]
+    result = run_cli(
+        "backtest-batch", "--manifest", str(manifest_path), cwd=project_root
+    )
+
+    assert result.returncode == 0, result.stderr
+    lines = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
+    run_lines = [line for line in lines if not line.startswith("Batch summary")]
+    assert len(run_lines) == 1
+    assert run_lines[0].startswith("MSFT | 2024-01-02 -> 2024-01-03")
+
+
+def test_backtest_batch_run_specific_dates_override_defaults(tmp_path: Path) -> None:
+    csv_msft = tmp_path / "MSFT.csv"
+    csv_msft.write_text(
+        "date,close\n"
+        "2024-01-01,100\n"
+        "2024-01-02,110\n"
+        "2024-01-03,120\n",
+        encoding="utf-8",
+    )
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "default_start_date": "2024-01-01",
+                "default_end_date": "2024-01-03",
+                "runs": [
+                    {
+                        "ticker": "MSFT",
+                        "csv_path": str(csv_msft),
+                        "start_date": "2024-01-03",
+                        "end_date": "2024-01-03",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    project_root = Path(__file__).resolve().parents[1]
+    result = run_cli(
+        "backtest-batch", "--manifest", str(manifest_path), cwd=project_root
+    )
+
+    assert result.returncode == 0, result.stderr
+    lines = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
+    run_lines = [line for line in lines if not line.startswith("Batch summary")]
+    assert len(run_lines) == 1
+    assert run_lines[0].startswith("MSFT | 2024-01-03 -> 2024-01-03")

@@ -110,7 +110,22 @@ def _result_to_dict(result: BacktestResult) -> dict:
     }
 
 
-def _load_manifest_runs(manifest_path: Path) -> tuple[list[dict], float]:
+def _load_manifest_runs(
+    manifest_path: Path,
+) -> tuple[list[dict], float, str | None, str | None]:
+    """Load and validate the batch manifest.
+
+    In addition to the required ``runs`` list, the manifest may include
+    optional top-level defaults that apply to each run unless explicitly
+    overridden:
+
+    - ``default_initial_cash``: numeric default starting cash
+    - ``default_start_date``: ISO date (YYYY-MM-DD) applied when a run omits
+      ``start_date``
+    - ``default_end_date``: ISO date (YYYY-MM-DD) applied when a run omits
+      ``end_date``
+    """
+
     if not manifest_path.exists():
         raise SystemExit(f"Manifest file not found: {manifest_path}")
 
@@ -135,13 +150,33 @@ def _load_manifest_runs(manifest_path: Path) -> tuple[list[dict], float]:
     try:
         default_initial_cash = float(default_initial_cash)
     except (TypeError, ValueError):
-        raise SystemExit("Manifest field 'default_initial_cash' must be a number if provided.")
+        raise SystemExit(
+            "Manifest field 'default_initial_cash' must be a number if provided."
+        )
 
-    return runs, default_initial_cash
+    default_start_date = manifest.get("default_start_date")
+    if default_start_date is not None and not isinstance(default_start_date, str):
+        raise SystemExit(
+            "Manifest field 'default_start_date' must be a string in YYYY-MM-DD format "
+            "if provided."
+        )
+
+    default_end_date = manifest.get("default_end_date")
+    if default_end_date is not None and not isinstance(default_end_date, str):
+        raise SystemExit(
+            "Manifest field 'default_end_date' must be a string in YYYY-MM-DD format "
+            "if provided."
+        )
+
+    return runs, default_initial_cash, default_start_date, default_end_date
 
 
 def _validate_run_config(
-    run_cfg: object, idx: int, default_initial_cash: float
+    run_cfg: object,
+    idx: int,
+    default_initial_cash: float,
+    default_start_date: str | None,
+    default_end_date: str | None,
 ) -> tuple[str, Path, float, str | None, str | None]:
     """Validate and normalise a single run configuration from the manifest.
 
@@ -177,17 +212,19 @@ def _validate_run_config(
             f"Run {idx} field 'initial_cash' must be a number if provided."
         )
 
-    start_date = run_cfg.get("start_date")
-    if start_date is not None and not isinstance(start_date, str):
+    start_date_raw = run_cfg.get("start_date", default_start_date)
+    if start_date_raw is not None and not isinstance(start_date_raw, str):
         raise SystemExit(
             f"Run {idx} field 'start_date' must be a string in YYYY-MM-DD format."
         )
+    start_date = start_date_raw
 
-    end_date = run_cfg.get("end_date")
-    if end_date is not None and not isinstance(end_date, str):
+    end_date_raw = run_cfg.get("end_date", default_end_date)
+    if end_date_raw is not None and not isinstance(end_date_raw, str):
         raise SystemExit(
             f"Run {idx} field 'end_date' must be a string in YYYY-MM-DD format."
         )
+    end_date = end_date_raw
 
     return ticker, csv_path, initial_cash, start_date, end_date
 
@@ -199,7 +236,9 @@ def _handle_backtest_batch(
     quiet: bool = False,
     skip_missing: bool = False,
 ) -> int:
-    runs, default_initial_cash = _load_manifest_runs(manifest_path)
+    runs, default_initial_cash, default_start_date, default_end_date = _load_manifest_runs(
+        manifest_path
+    )
 
     avg_return = None
     best: BacktestResult | None = None
@@ -207,7 +246,11 @@ def _handle_backtest_batch(
     results: list[BacktestResult] = []
     for idx, run_cfg in enumerate(runs):
         ticker, csv_path, initial_cash, start_date, end_date = _validate_run_config(
-            run_cfg, idx, default_initial_cash
+            run_cfg,
+            idx,
+            default_initial_cash,
+            default_start_date,
+            default_end_date,
         )
 
         try:
