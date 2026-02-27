@@ -79,6 +79,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional path to write a JSON summary for the entire batch.",
     )
+    backtest_batch.add_argument(
+        "--quiet",
+        action="store_true",
+        help="If set, only print the batch summary (suppress per-run lines).",
+    )
 
     return parser
 
@@ -180,7 +185,12 @@ def _validate_run_config(
     return ticker, csv_path, initial_cash, start_date, end_date
 
 
-def _handle_backtest_batch(manifest_path: Path, summary_path: Path | None = None) -> int:
+def _handle_backtest_batch(
+    manifest_path: Path,
+    summary_path: Path | None = None,
+    *,
+    quiet: bool = False,
+) -> int:
     runs, default_initial_cash = _load_manifest_runs(manifest_path)
 
     avg_return = None
@@ -223,11 +233,12 @@ def _handle_backtest_batch(manifest_path: Path, summary_path: Path | None = None
             raise SystemExit(f"Backtest failed for run {idx} ({ticker}): {exc}") from exc
 
         results.append(result)
-        print(
-            f"{result.ticker} | {result.start.date()} -> {result.end.date()} | "
-            f"total_return={result.total_return_pct:,.2f}% | "
-            f"max_drawdown={result.max_drawdown_pct:,.2f}%"
-        )
+        if not quiet:
+            print(
+                f"{result.ticker} | {result.start.date()} -> {result.end.date()} | "
+                f"total_return={result.total_return_pct:,.2f}% | "
+                f"max_drawdown={result.max_drawdown_pct:,.2f}%"
+            )
 
     if results:
         avg_return = round(
@@ -323,7 +334,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "backtest-batch":
-        return _handle_backtest_batch(args.manifest, summary_path=args.summary_path)
+        return _handle_backtest_batch(
+            args.manifest,
+            summary_path=args.summary_path,
+            quiet=getattr(args, "quiet", False),
+        )
 
     parser.error(f"Unknown command: {args.command}")
     return 1

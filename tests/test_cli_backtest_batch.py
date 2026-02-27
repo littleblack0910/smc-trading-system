@@ -250,3 +250,45 @@ def test_backtest_batch_errors_on_empty_runs(tmp_path: Path) -> None:
     assert result.returncode != 0
     message = result.stderr + result.stdout
     assert "must contain at least one backtest entry" in message
+
+
+def test_backtest_batch_quiet_suppresses_run_output(tmp_path: Path) -> None:
+    csv_msft = tmp_path / "MSFT.csv"
+    csv_msft.write_text(
+        "date,close\n2024-01-01,100\n2024-01-02,110\n",
+        encoding="utf-8",
+    )
+
+    csv_aapl = tmp_path / "AAPL.csv"
+    csv_aapl.write_text(
+        "date,close\n2024-02-01,200\n2024-02-02,220\n",
+        encoding="utf-8",
+    )
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "runs": [
+                    {"ticker": "MSFT", "csv_path": str(csv_msft)},
+                    {"ticker": "AAPL", "csv_path": str(csv_aapl)},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    project_root = Path(__file__).resolve().parents[1]
+    result = run_cli(
+        "backtest-batch",
+        "--manifest",
+        str(manifest_path),
+        "--quiet",
+        cwd=project_root,
+    )
+
+    assert result.returncode == 0, result.stderr
+    lines = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
+    # Only the batch summary line should be present
+    assert len(lines) == 1
+    assert lines[0].startswith("Batch summary: ")
