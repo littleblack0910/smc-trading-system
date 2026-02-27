@@ -197,3 +197,6 @@ python -m smc_trading backtest-batch --manifest data/batch_manifest_example.json
 ```
 
 Per-run JSON output: use --per-run-output-dir path/to/dir to write one JSON summary per executed run. Each file is named <ticker>_<index>.json and has the same shape as the single backtest JSON summary.
+
+For a more detailed reference of CLI options and JSON output schemas, see `docs/backtest_cli.md`.
+
