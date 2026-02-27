@@ -250,3 +250,260 @@ def test_backtest_batch_errors_on_empty_runs(tmp_path: Path) -> None:
     assert result.returncode != 0
     message = result.stderr + result.stdout
     assert "must contain at least one backtest entry" in message
+
+
+def test_backtest_batch_skip_missing_processes_only_existing_csv(tmp_path: Path) -> None:
+    csv_present = tmp_path / "PRESENT.csv"
+    csv_present.write_text(
+        "date,close\n2024-01-01,100\n2024-01-02,110\n",
+        encoding="utf-8",
+    )
+
+    missing_csv = tmp_path / "MISSING.csv"
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "runs": [
+                    {"ticker": "PRESENT", "csv_path": str(csv_present)},
+                    {"ticker": "MISSING", "csv_path": str(missing_csv)},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    project_root = Path(__file__).resolve().parents[1]
+    result = run_cli(
+        "backtest-batch",
+        "--manifest",
+        str(manifest_path),
+        "--skip-missing",
+        cwd=project_root,
+    )
+
+    assert result.returncode == 0, result.stderr
+    lines = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
+    # Filter out the informational "Skipping run" line when counting executed runs
+    run_lines = [
+        line
+        for line in lines
+        if not line.startswith("Batch summary")
+        and not line.startswith("Skipping run")
+    ]
+    # We expect exactly one run line for the present CSV
+    assert len(run_lines) == 1
+    assert run_lines[0].startswith("PRESENT | 2024-01-01 -> 2024-01-02")
+    # Batch summary should reflect a single executed run
+    batch_lines = [line for line in lines if line.startswith("Batch summary:")]
+    assert batch_lines, "Expected a batch summary line in stdout"
+    assert "runs=1" in batch_lines[0]
+
+
+def test_backtest_batch_skip_missing_all_runs_results_in_error(tmp_path: Path) -> None:
+    missing_csv_1 = tmp_path / "MISSING1.csv"
+    missing_csv_2 = tmp_path / "MISSING2.csv"
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "runs": [
+                    {"ticker": "M1", "csv_path": str(missing_csv_1)},
+                    {"ticker": "M2", "csv_path": str(missing_csv_2)},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    project_root = Path(__file__).resolve().parents[1]
+    result = run_cli(
+        "backtest-batch",
+        "--manifest",
+        str(manifest_path),
+        "--skip-missing",
+        cwd=project_root,
+    )
+
+    # When all runs are skipped, we should get a non-zero exit code and a clear message
+    assert result.returncode != 0
+    message = result.stderr + result.stdout
+    assert "No backtests were executed" in message
+
+
+def test_backtest_batch_quiet_suppresses_run_output(tmp_path: Path) -> None:
+    csv_msft = tmp_path / "MSFT.csv"
+    csv_msft.write_text(
+        "date,close\n2024-01-01,100\n2024-01-02,110\n",
+        encoding="utf-8",
+    )
+
+    csv_aapl = tmp_path / "AAPL.csv"
+    csv_aapl.write_text(
+        "date,close\n2024-02-01,200\n2024-02-02,220\n",
+        encoding="utf-8",
+    )
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "runs": [
+                    {"ticker": "MSFT", "csv_path": str(csv_msft)},
+                    {"ticker": "AAPL", "csv_path": str(csv_aapl)},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    project_root = Path(__file__).resolve().parents[1]
+    result = run_cli(
+        "backtest-batch",
+        "--manifest",
+        str(manifest_path),
+        "--quiet",
+        cwd=project_root,
+    )
+
+    assert result.returncode == 0, result.stderr
+    lines = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
+    # Only the batch summary line should be present
+    assert len(lines) == 1
+    assert lines[0].startswith("Batch summary: ")
+
+
+def test_backtest_batch_uses_default_date_window_when_not_overridden(tmp_path: Path) -> None:
+    csv_msft = tmp_path / "MSFT.csv"
+    csv_msft.write_text(
+        "date,close\n"
+        "2024-01-01,100\n"
+        "2024-01-02,110\n"
+        "2024-01-03,120\n",
+        encoding="utf-8",
+    )
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "default_start_date": "2024-01-02",
+                "default_end_date": "2024-01-03",
+                "runs": [
+                    {
+                        "ticker": "MSFT",
+                        "csv_path": str(csv_msft),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    project_root = Path(__file__).resolve().parents[1]
+    result = run_cli(
+        "backtest-batch", "--manifest", str(manifest_path), cwd=project_root
+    )
+
+    assert result.returncode == 0, result.stderr
+    lines = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
+    run_lines = [line for line in lines if not line.startswith("Batch summary")]
+    assert len(run_lines) == 1
+    assert run_lines[0].startswith("MSFT | 2024-01-02 -> 2024-01-03")
+
+
+def test_backtest_batch_run_specific_dates_override_defaults(tmp_path: Path) -> None:
+    csv_msft = tmp_path / "MSFT.csv"
+    csv_msft.write_text(
+        "date,close\n"
+        "2024-01-01,100\n"
+        "2024-01-02,110\n"
+        "2024-01-03,120\n",
+        encoding="utf-8",
+    )
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "default_start_date": "2024-01-01",
+                "default_end_date": "2024-01-03",
+                "runs": [
+                    {
+                        "ticker": "MSFT",
+                        "csv_path": str(csv_msft),
+                        "start_date": "2024-01-03",
+                        "end_date": "2024-01-03",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    project_root = Path(__file__).resolve().parents[1]
+    result = run_cli(
+        "backtest-batch", "--manifest", str(manifest_path), cwd=project_root
+    )
+
+    assert result.returncode == 0, result.stderr
+    lines = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
+    run_lines = [line for line in lines if not line.startswith("Batch summary")]
+    assert len(run_lines) == 1
+    assert run_lines[0].startswith("MSFT | 2024-01-03 -> 2024-01-03")
+
+
+def test_backtest_batch_writes_per_run_json_summaries(tmp_path: Path) -> None:
+    csv_msft = tmp_path / "MSFT.csv"
+    csv_msft.write_text(
+        "date,close\n2024-01-01,100\n2024-01-02,110\n",
+        encoding="utf-8",
+    )
+
+    csv_aapl = tmp_path / "AAPL.csv"
+    csv_aapl.write_text(
+        "date,close\n2024-02-01,200\n2024-02-02,220\n",
+        encoding="utf-8",
+    )
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "runs": [
+                    {"ticker": "MSFT", "csv_path": str(csv_msft)},
+                    {"ticker": "AAPL", "csv_path": str(csv_aapl)},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    per_run_dir = tmp_path / "per_run"
+    project_root = Path(__file__).resolve().parents[1]
+    result = run_cli(
+        "backtest-batch",
+        "--manifest",
+        str(manifest_path),
+        "--per-run-output-dir",
+        str(per_run_dir),
+        cwd=project_root,
+    )
+
+    assert result.returncode == 0, result.stderr
+    # Expect one JSON file per executed run, named with ticker and manifest index
+    msft_path = per_run_dir / "MSFT_0.json"
+    aapl_path = per_run_dir / "AAPL_1.json"
+    assert msft_path.exists()
+    assert aapl_path.exists()
+
+    msft_doc = json.loads(msft_path.read_text(encoding="utf-8"))
+    aapl_doc = json.loads(aapl_path.read_text(encoding="utf-8"))
+
+    assert msft_doc["ticker"] == "MSFT"
+    assert aapl_doc["ticker"] == "AAPL"
+    # Sanity-check that the period fields are present and look like dates
+    assert "period_start" in msft_doc and "period_end" in msft_doc
+    assert "period_start" in aapl_doc and "period_end" in aapl_doc

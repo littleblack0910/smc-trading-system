@@ -1,0 +1,1 @@
+﻿{"default_initial_cash": 10000, "runs": [{"ticker": "AAPL", "csv_path": "data/AAPL_sample.csv"}, {"ticker": "MSFT", "csv_path": "data/MSFT_sample.csv"}]}

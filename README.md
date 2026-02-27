@@ -1,4 +1,4 @@
-# SMC Trading System
+﻿# SMC Trading System
 
 A 24/7 AI-assisted trading system for monitoring selected stocks, ingesting market and fundamental data, and executing strategy-driven trades via broker APIs.
 
@@ -25,19 +25,19 @@ A 24/7 AI-assisted trading system for monitoring selected stocks, ingesting mark
    - Create folder structure, basic config, and simple CLI entrypoint.
    - Add a simple backtest on historical price data for a few tickers.
 
-2. **Data Ingestion (Weeks 1–2)**
+2. **Data Ingestion (Weeks 1鈥?)**
    - Implement market data ingestion (historical + live) from chosen provider.
    - Store data in local DB or files; define canonical data schema.
 
-3. **Strategy & Backtesting (Weeks 2–3)**
+3. **Strategy & Backtesting (Weeks 2鈥?)**
    - Implement a simple baseline strategy (e.g., momentum + volatility filters).
    - Build a small backtesting harness.
 
-4. **Execution Engine (Weeks 3–4)**
+4. **Execution Engine (Weeks 3鈥?)**
    - Integrate with broker paper-trading API.
    - Implement risk checks and position sizing.
 
-5. **24/7 Orchestration & Monitoring (Weeks 4–6)**
+5. **24/7 Orchestration & Monitoring (Weeks 4鈥?)**
    - Build a scheduler/daemon to run the loop.
    - Add logging, metrics, and basic monitoring dashboard.
 
@@ -86,10 +86,10 @@ python -m smc_trading backtest \
 
 #### Optional arguments
 
-- `--start-date YYYY-MM-DD` – only use rows on or after this date.
-- `--end-date YYYY-MM-DD` – only use rows on or before this date.
-- `--output-path path/to/summary.json` – write a machine-readable JSON summary of the backtest result.
-- `--equity-curve-path path/to/equity.csv` – write the full equity curve (date, price, position, cash, equity) to CSV.
+- `--start-date YYYY-MM-DD` 鈥?only use rows on or after this date.
+- `--end-date YYYY-MM-DD` 鈥?only use rows on or before this date.
+- `--output-path path/to/summary.json` 鈥?write a machine-readable JSON summary of the backtest result.
+- `--equity-curve-path path/to/equity.csv` 鈥?write the full equity curve (date, price, position, cash, equity) to CSV.
 
 Example with a date window and JSON summary output:
 
@@ -132,6 +132,8 @@ The manifest must be a JSON object with a top-level `runs` list. Each entry in `
 The top-level manifest may also include:
 
 - `default_initial_cash` (optional): a numeric default starting cash applied to runs that omit `initial_cash`.
+- `default_start_date` (optional): a default start date (YYYY-MM-DD) applied to runs that omit `start_date`.
+- `default_end_date` (optional): a default end date (YYYY-MM-DD) applied to runs that omit `end_date`.
 
 Example `manifest.json`:
 
@@ -154,7 +156,7 @@ Example `manifest.json`:
 }
 ```
 
-Run the batch backtest from the project root:
+Run the batch backtest from the project root (for example, using the sample manifest in data/backtest_batch_manifest_example.json):
 
 ```bash
 python -m smc_trading backtest-batch --manifest path/to/manifest.json
@@ -179,6 +181,11 @@ The batch summary JSON has the following shape:
 
 This makes it easier to feed the batch output into dashboards, notebooks, or other tooling without re-deriving aggregate metrics.
 
+Additional useful flags for batch runs:
+
+- `--quiet`: suppress per-run summary lines and only print the final batch summary (useful when you are mainly interested in aggregate metrics).
+- `--skip-missing`: skip any runs whose CSV files are missing instead of failing the entire batch. Each skipped run is reported to stdout so you can see what was ignored.
+
 If the manifest file is missing, invalid JSON, or a run is missing required keys (`ticker` or `csv_path`), the command exits with an error message describing the problem.
 
 Example manifest file:
@@ -188,3 +195,5 @@ An example manifest is included at `data/batch_manifest_example.json`, which you
 ```bash
 python -m smc_trading backtest-batch --manifest data/batch_manifest_example.json
 ```
+
+Per-run JSON output: use --per-run-output-dir path/to/dir to write one JSON summary per executed run. Each file is named <ticker>_<index>.json and has the same shape as the single backtest JSON summary.

@@ -79,6 +79,27 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional path to write a JSON summary for the entire batch.",
     )
+    backtest_batch.add_argument(
+        "--per-run-output-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Optional directory to write a JSON summary per executed run. "
+            "Files are named '<ticker>_<index>.json' using the run index from the manifest."
+        ),
+    )
+    backtest_batch.add_argument(
+        "--quiet",
+        action="store_true",
+        help="If set, only print the batch summary (suppress per-run lines).",
+    )
+    backtest_batch.add_argument(
+        "--skip-missing",
+        action="store_true",
+        help=(
+            "If set, skip runs whose CSV files are missing instead of failing the whole batch."
+        ),
+    )
 
     return parser
 
@@ -98,7 +119,22 @@ def _result_to_dict(result: BacktestResult) -> dict:
     }
 
 
-def _load_manifest_runs(manifest_path: Path) -> tuple[list[dict], float]:
+def _load_manifest_runs(
+    manifest_path: Path,
+) -> tuple[list[dict], float, str | None, str | None]:
+    """Load and validate the batch manifest.
+
+    In addition to the required ``runs`` list, the manifest may include
+    optional top-level defaults that apply to each run unless explicitly
+    overridden:
+
+    - ``default_initial_cash``: numeric default starting cash
+    - ``default_start_date``: ISO date (YYYY-MM-DD) applied when a run omits
+      ``start_date``
+    - ``default_end_date``: ISO date (YYYY-MM-DD) applied when a run omits
+      ``end_date``
+    """
+
     if not manifest_path.exists():
         raise SystemExit(f"Manifest file not found: {manifest_path}")
 
@@ -123,13 +159,33 @@ def _load_manifest_runs(manifest_path: Path) -> tuple[list[dict], float]:
     try:
         default_initial_cash = float(default_initial_cash)
     except (TypeError, ValueError):
-        raise SystemExit("Manifest field 'default_initial_cash' must be a number if provided.")
+        raise SystemExit(
+            "Manifest field 'default_initial_cash' must be a number if provided."
+        )
 
-    return runs, default_initial_cash
+    default_start_date = manifest.get("default_start_date")
+    if default_start_date is not None and not isinstance(default_start_date, str):
+        raise SystemExit(
+            "Manifest field 'default_start_date' must be a string in YYYY-MM-DD format "
+            "if provided."
+        )
+
+    default_end_date = manifest.get("default_end_date")
+    if default_end_date is not None and not isinstance(default_end_date, str):
+        raise SystemExit(
+            "Manifest field 'default_end_date' must be a string in YYYY-MM-DD format "
+            "if provided."
+        )
+
+    return runs, default_initial_cash, default_start_date, default_end_date
 
 
 def _validate_run_config(
-    run_cfg: object, idx: int, default_initial_cash: float
+    run_cfg: object,
+    idx: int,
+    default_initial_cash: float,
+    default_start_date: str | None,
+    default_end_date: str | None,
 ) -> tuple[str, Path, float, str | None, str | None]:
     """Validate and normalise a single run configuration from the manifest.
 
@@ -165,23 +221,37 @@ def _validate_run_config(
             f"Run {idx} field 'initial_cash' must be a number if provided."
         )
 
-    start_date = run_cfg.get("start_date")
-    if start_date is not None and not isinstance(start_date, str):
+    start_date_raw = run_cfg.get("start_date", default_start_date)
+    if start_date_raw is not None and not isinstance(start_date_raw, str):
         raise SystemExit(
             f"Run {idx} field 'start_date' must be a string in YYYY-MM-DD format."
         )
+    start_date = start_date_raw
 
-    end_date = run_cfg.get("end_date")
-    if end_date is not None and not isinstance(end_date, str):
+    end_date_raw = run_cfg.get("end_date", default_end_date)
+    if end_date_raw is not None and not isinstance(end_date_raw, str):
         raise SystemExit(
             f"Run {idx} field 'end_date' must be a string in YYYY-MM-DD format."
         )
+    end_date = end_date_raw
 
     return ticker, csv_path, initial_cash, start_date, end_date
 
 
-def _handle_backtest_batch(manifest_path: Path, summary_path: Path | None = None) -> int:
-    runs, default_initial_cash = _load_manifest_runs(manifest_path)
+def _handle_backtest_batch(
+    manifest_path: Path,
+    summary_path: Path | None = None,
+    per_run_output_dir: Path | None = None,
+    *,
+    quiet: bool = False,
+    skip_missing: bool = False,
+) -> int:
+    runs, default_initial_cash, default_start_date, default_end_date = _load_manifest_runs(
+        manifest_path
+    )
+
+    if per_run_output_dir is not None:
+        per_run_output_dir.mkdir(parents=True, exist_ok=True)
 
     avg_return = None
     best: BacktestResult | None = None
@@ -189,13 +259,25 @@ def _handle_backtest_batch(manifest_path: Path, summary_path: Path | None = None
     results: list[BacktestResult] = []
     for idx, run_cfg in enumerate(runs):
         ticker, csv_path, initial_cash, start_date, end_date = _validate_run_config(
-            run_cfg, idx, default_initial_cash
+            run_cfg,
+            idx,
+            default_initial_cash,
+            default_start_date,
+            default_end_date,
         )
 
         try:
             df = load_price_csv(csv_path)
         except FileNotFoundError:
-            raise SystemExit(f"CSV file not found for run {idx} ({ticker}): {csv_path}")
+            if skip_missing:
+                print(
+                    f"Skipping run {idx} ({ticker}) because CSV file is missing: {csv_path}",
+                    flush=True,
+                )
+                continue
+            raise SystemExit(
+                f"CSV file not found for run {idx} ({ticker}): {csv_path}"
+            )
         except Exception as exc:  # pragma: no cover - defensive
             raise SystemExit(
                 f"Failed to load CSV for run {idx} ({ticker}): {exc}"
@@ -223,25 +305,36 @@ def _handle_backtest_batch(manifest_path: Path, summary_path: Path | None = None
             raise SystemExit(f"Backtest failed for run {idx} ({ticker}): {exc}") from exc
 
         results.append(result)
-        print(
-            f"{result.ticker} | {result.start.date()} -> {result.end.date()} | "
-            f"total_return={result.total_return_pct:,.2f}% | "
-            f"max_drawdown={result.max_drawdown_pct:,.2f}%"
-        )
 
-    if results:
-        avg_return = round(
-            sum(r.total_return_pct for r in results) / len(results), 6
-        )
-        best = max(results, key=lambda r: r.total_return_pct)
-        worst = min(results, key=lambda r: r.total_return_pct)
+        if per_run_output_dir is not None:
+            output_doc = _result_to_dict(result)
+            per_run_path = per_run_output_dir / f"{ticker}_{idx}.json"
+            with per_run_path.open("w", encoding="utf-8") as f:
+                json.dump(output_doc, f, indent=2)
+        if not quiet:
+            print(
+                f"{result.ticker} | {result.start.date()} -> {result.end.date()} | "
+                f"total_return={result.total_return_pct:,.2f}% | "
+                f"max_drawdown={result.max_drawdown_pct:,.2f}%"
+            )
+
+    if not results:
         print(
-            "Batch summary: "
-            f"runs={len(results)} | "
-            f"avg_return={avg_return:,.2f}% | "
-            f"best={best.ticker} ({best.total_return_pct:,.2f}%) | "
-            f"worst={worst.ticker} ({worst.total_return_pct:,.2f}%)"
+            "No backtests were executed. Check your manifest and any --skip-missing usage.",
+            flush=True,
         )
+        return 1
+
+    avg_return = round(sum(r.total_return_pct for r in results) / len(results), 6)
+    best = max(results, key=lambda r: r.total_return_pct)
+    worst = min(results, key=lambda r: r.total_return_pct)
+    print(
+        "Batch summary: "
+        f"runs={len(results)} | "
+        f"avg_return={avg_return:,.2f}% | "
+        f"best={best.ticker} ({best.total_return_pct:,.2f}%) | "
+        f"worst={worst.ticker} ({worst.total_return_pct:,.2f}%)"
+    )
 
     if summary_path:
         summary_path.parent.mkdir(parents=True, exist_ok=True)
@@ -249,19 +342,15 @@ def _handle_backtest_batch(manifest_path: Path, summary_path: Path | None = None
             "runs": [_result_to_dict(r) for r in results],
             "summary": {
                 "n_runs": len(results),
-                "avg_total_return_pct": avg_return if results else None,
+                "avg_total_return_pct": avg_return,
                 "best": {
                     "ticker": best.ticker,
                     "total_return_pct": best.total_return_pct,
-                }
-                if results
-                else None,
+                },
                 "worst": {
                     "ticker": worst.ticker,
                     "total_return_pct": worst.total_return_pct,
-                }
-                if results
-                else None,
+                },
             },
         }
         with summary_path.open("w", encoding="utf-8") as f:
@@ -323,7 +412,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "backtest-batch":
-        return _handle_backtest_batch(args.manifest, summary_path=args.summary_path)
+        return _handle_backtest_batch(
+            args.manifest,
+            summary_path=args.summary_path,
+            per_run_output_dir=getattr(args, "per_run_output_dir", None),
+            quiet=getattr(args, "quiet", False),
+            skip_missing=getattr(args, "skip_missing", False),
+        )
 
     parser.error(f"Unknown command: {args.command}")
     return 1
