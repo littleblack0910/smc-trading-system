@@ -1,4 +1,4 @@
-# SMC Trading System
+﻿# SMC Trading System
 
 A 24/7 AI-assisted trading system for monitoring selected stocks, ingesting market and fundamental data, and executing strategy-driven trades via broker APIs.
 
@@ -25,19 +25,19 @@ A 24/7 AI-assisted trading system for monitoring selected stocks, ingesting mark
    - Create folder structure, basic config, and simple CLI entrypoint.
    - Add a simple backtest on historical price data for a few tickers.
 
-2. **Data Ingestion (Weeks 1–2)**
+2. **Data Ingestion (Weeks 1鈥?)**
    - Implement market data ingestion (historical + live) from chosen provider.
    - Store data in local DB or files; define canonical data schema.
 
-3. **Strategy & Backtesting (Weeks 2–3)**
+3. **Strategy & Backtesting (Weeks 2鈥?)**
    - Implement a simple baseline strategy (e.g., momentum + volatility filters).
    - Build a small backtesting harness.
 
-4. **Execution Engine (Weeks 3–4)**
+4. **Execution Engine (Weeks 3鈥?)**
    - Integrate with broker paper-trading API.
    - Implement risk checks and position sizing.
 
-5. **24/7 Orchestration & Monitoring (Weeks 4–6)**
+5. **24/7 Orchestration & Monitoring (Weeks 4鈥?)**
    - Build a scheduler/daemon to run the loop.
    - Add logging, metrics, and basic monitoring dashboard.
 
@@ -86,10 +86,10 @@ python -m smc_trading backtest \
 
 #### Optional arguments
 
-- `--start-date YYYY-MM-DD` – only use rows on or after this date.
-- `--end-date YYYY-MM-DD` – only use rows on or before this date.
-- `--output-path path/to/summary.json` – write a machine-readable JSON summary of the backtest result.
-- `--equity-curve-path path/to/equity.csv` – write the full equity curve (date, price, position, cash, equity) to CSV.
+- `--start-date YYYY-MM-DD` 鈥?only use rows on or after this date.
+- `--end-date YYYY-MM-DD` 鈥?only use rows on or before this date.
+- `--output-path path/to/summary.json` 鈥?write a machine-readable JSON summary of the backtest result.
+- `--equity-curve-path path/to/equity.csv` 鈥?write the full equity curve (date, price, position, cash, equity) to CSV.
 
 Example with a date window and JSON summary output:
 
@@ -154,7 +154,7 @@ Example `manifest.json`:
 }
 ```
 
-Run the batch backtest from the project root:
+Run the batch backtest from the project root (for example, using the sample manifest in data/backtest_batch_manifest_example.json):
 
 ```bash
 python -m smc_trading backtest-batch --manifest path/to/manifest.json
